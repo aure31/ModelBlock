@@ -1,0 +1,6 @@
+
+[tasks.build-and-copy]
+script = [
+    "cargo build --release",
+    "cp target/release/libfirstpl.dylib server/plugins"
+]

@@ -1,0 +1,27 @@
+[package]
+name = "firstpl"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+
+pumpkin = { git = "https://github.com/PumpkinPlugins/PumpkinCE", branch = "master" }
+pumpkin-util = { git = "https://github.com/PumpkinPlugins/PumpkinCE", branch = "master" }
+pumpkin-api-macros = { git = "https://github.com/PumpkinPlugins/PumpkinCE", branch = "master" }
+pumpkin-world = { git = "https://github.com/PumpkinPlugins/PumpkinCE", branch = "master" }
+pumpkin-data = { git = "https://github.com/PumpkinPlugins/PumpkinCE", branch = "master" }
+pumpkin-protocol = { git = "https://github.com/PumpkinPlugins/PumpkinCE", branch = "master" }
+
+# A utility allowing plugins to work asynchronously
+async-trait = "0.1"
+# A rust asynchronous runtime
+tokio = "1.42"
+# Logging
+log = "0.4"
+
+[profile.release] 
+lto = true
+
