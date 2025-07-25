@@ -1,5 +1,9 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use pumpkin::plugin::Context;
 use pumpkin_api_macros::{plugin_impl, plugin_method};
+mod data;
 mod serialize;
 
 #[plugin_method]
