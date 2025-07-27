@@ -10,6 +10,8 @@ mod serialize;
 async fn on_load(&mut self, server: &Context) -> Result<(), String> {
     pumpkin::init_log!();
     log::info!("Hello, Pumpkin");
+    let a = serde_json::to_string(&serialize::ModelData::default());
+    log::info!("blueprint: {}", a.unwrap());
     Ok(())
 }
 

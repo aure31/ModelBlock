@@ -1,7 +1,8 @@
 use pumpkin_util::math::vector3::Vector3;
 use serde::Deserialize;
+use serde::Serialize;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Float3 {
     x: f32,
     y: f32,
@@ -49,7 +50,7 @@ impl Float3 {
 const CENTER: Float3 = Float3::new(8., 8., 8.);
 const ZERO: Float3 = Float3::new(0., 0., 0.);
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Float4 {
     dx: f32,
     dz: f32,
