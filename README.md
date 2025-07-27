@@ -1,2 +1,2 @@
 # Model Block Plugin
-ceci est un portage de BetterModel en tant que plugin pumkin
+This is a port of BetterModel as a pumkin plugin.
