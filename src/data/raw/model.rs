@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
-use crate::data::{Float3, Float4};
+use super::float3::Float3;
+use super::float4::Float4;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct ModelResolution {
+pub struct ModelResolution {
     width: u32,
     height: u32,
 }
@@ -19,7 +23,7 @@ where
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct ModelUV {
+pub struct ModelUV {
     uv: Float4,
     #[serde(default)]
     rotation: f32,
@@ -38,7 +42,7 @@ struct ModelFace {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ModelElement {
+pub struct ModelElement {
     name: String,
     uuid: String,
     from: Float3,
@@ -53,18 +57,24 @@ struct ModelElement {
     visibility: bool,
 }
 
+impl ModelElement {
+    pub fn max(&self) -> f32 {
+        self.to.sub(&self.from).to_vec3().length()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
-struct ModelTexture {
-    name: String,
-    source: String,
-    width: u32,
-    height: u32,
-    uv_width: u32,
-    uv_height: u32,
+pub struct ModelTexture {
+    pub name: String,
+    pub source: String,
+    pub width: u32,
+    pub height: u32,
+    pub uv_width: u32,
+    pub uv_height: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-enum AnimationType {
+pub enum AnimationType {
     #[default]
     PlayOnce,
     #[serde(rename = "loop")]
@@ -75,7 +85,7 @@ enum AnimationType {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
-enum KeyFrameChannel {
+pub enum KeyFrameChannel {
     Position,
     Rotation,
     Scale,
@@ -93,7 +103,7 @@ where
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct DataPoint {
+pub struct DataPoint {
     #[serde(deserialize_with = "f32_from_str")]
     x: f32,
     #[serde(deserialize_with = "f32_from_str")]
@@ -105,7 +115,7 @@ struct DataPoint {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ModelKeyFrame {
+pub struct ModelKeyFrame {
     channel: KeyFrameChannel,
     data_points: Vec<DataPoint>,
     #[serde(default)]
@@ -122,13 +132,13 @@ struct ModelKeyFrame {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ModelAnimator {
+pub struct ModelAnimator {
     name: String,
     keyframes: Vec<ModelKeyFrame>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ModelAnimation {
+pub struct ModelAnimation {
     name: String,
     #[serde(default)]
     looptype: AnimationType,
@@ -140,33 +150,45 @@ struct ModelAnimation {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ModelGroupe {
-    name: String,
-    origin: Float3,
-    rotation: Float3,
-    uuid: String,
-    children: Vec<ModelChildren>,
+pub struct ModelGroupe {
+    pub name: String,
+    pub origin: Float3,
+    pub rotation: Float3,
+    pub uuid: String,
+    pub children: Vec<ModelChildren>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ModelUUID {
-    uuid: String,
+pub struct ModelUUID {
+    pub uuid: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-enum ModelChildren {
+pub enum ModelChildren {
     Element(ModelUUID),
     Group(ModelGroupe),
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct ModelData {
-    resolution: ModelResolution,
-    elements: Vec<ModelElement>,
-    outliner: Vec<ModelChildren>,
-    textures: Vec<ModelTexture>,
-    animations: Vec<ModelAnimation>,
+    pub name: String,
+    pub resolution: ModelResolution,
+    pub elements: Vec<ModelElement>,
+    pub outliner: Vec<ModelChildren>,
+    pub textures: Vec<ModelTexture>,
+    pub animations: Vec<ModelAnimation>,
+}
+
+impl ModelData {
+    pub fn scale(&self) -> f32 {
+        return self
+            .elements
+            .iter()
+            .map(|e| e.max())
+            .reduce(f32::max)
+            .unwrap_or(16.0);
+    }
 }
 
 #[cfg(test)]

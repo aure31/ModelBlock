@@ -10,6 +10,8 @@ pub struct Float3 {
 }
 
 impl Float3 {
+    const CENTER: Float3 = Float3::new(8., 8., 8.);
+
     pub fn to_vec3(&self) -> Vector3<f32> {
         Vector3::new(self.x, self.y, self.z)
     }
@@ -26,7 +28,7 @@ impl Float3 {
         Self::new(self.x + other.x, self.y + other.y, self.z + other.z)
     }
 
-    pub async fn sub(&self, other: &Self) -> Self {
+    pub fn sub(&self, other: &Self) -> Self {
         Self::new(self.x - other.x, self.y - other.y, self.z - other.z)
     }
 
@@ -45,15 +47,4 @@ impl Float3 {
     pub async fn to_block_scale(&self) -> Self {
         self.div(&Self::flat(16.0)).await
     }
-}
-
-const CENTER: Float3 = Float3::new(8., 8., 8.);
-const ZERO: Float3 = Float3::new(0., 0., 0.);
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct Float4 {
-    dx: f32,
-    dz: f32,
-    tx: f32,
-    ty: f32,
 }
