@@ -15,7 +15,6 @@ use crate::bone::BoneName;
 use self::animation::BlueprintAnimation;
 
 use super::raw::float3::Float3;
-use super::raw::model::AnimationType;
 use super::raw::model::ModelAnimation;
 use super::raw::model::ModelChildren;
 use super::raw::model::ModelData;

@@ -1,6 +1,8 @@
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
+use std::sync::Weak;
 
 use ordered_float::OrderedFloat;
 use pumpkin_util::math::vector3::Math;
@@ -10,6 +12,7 @@ use serde::Serialize;
 
 use crate::bone::BoneName;
 use crate::bone::BONE_TAG_REGISTRY;
+use crate::data::blueprint::BlueprintChildren;
 use crate::data::raw::model::KeyFrameChannel;
 use crate::data::raw::model::ModelAnimation;
 use crate::data::raw::model::ModelKeyFrame;
@@ -278,8 +281,10 @@ impl BlueprintAnimation {
         }
         let animators : HashMap<BoneName, BlueprintAnimator> = AnimationGenerator::createMovements(children, map);
         let empty_animator = if animators.is_empty() {
-            vec![AnimationMovement, AnimationMovement::from_lenght(&animation.length)]
-        };
+            vec![AnimationMovement::default(), AnimationMovement::from_lenght(animation.length)]
+        } else {
+            vec![]
+        }
         Self {
             name: animation.name,
             loop_type: animation.looptype,
@@ -292,11 +297,124 @@ impl BlueprintAnimation {
     }
 }
 
-pub struct AnimationGenerator {
-    point_map: HashMap<BoneName, AnimatorData>,
-    trees: Vec<AnimationTree>,
+pub struct AnimationTree {
+    pub parent: Weak<AnimationTree>, // lien faible vers le parent
+    pub children: Vec<Arc<AnimationTree>>, // enfants avec Arc
+    pub points: Vec<AnimationPoint>,
 }
 
+impl AnimationTree {
+    pub fn new_root(
+        point_map: &HashMap<BoneName, AnimatorData>,
+        group: &BlueprintGroup,
+        points: Vec<AnimationPoint>,
+    ) -> Arc<Self> {
+        // Création de la racine sans parent
+        let root = Arc::new(Self {
+            parent: Weak::new(),
+            children: vec![],
+            points,
+        });
+
+        // Ajout récursif des enfants
+        let children = Self::build_children(point_map, &root, group);
+        // On remplit les enfants de la racine
+        Arc::get_mut(&mut Arc::clone(&root))
+            .unwrap()
+            .children = children;
+
+        root
+    }
+
+    fn build_children(
+        point_map: &HashMap<BoneName, AnimatorData>,
+        parent: &Arc<AnimationTree>,
+        group: &BlueprintGroup,
+    ) -> Vec<Arc<AnimationTree>> {
+        group
+            .children
+            .iter()
+            .filter_map(|g| {
+                if let BlueprintChildren::Group(b) = g {
+                    // Récupération éventuelle des points
+                    let points = point_map
+                        .get(&b.name)
+                        .map(|a| a.points.clone())
+                        .unwrap_or_default();
+
+                    // Création de l’enfant avec Weak vers le parent
+                    let child = Arc::new(Self {
+                        parent: Arc::downgrade(parent),
+                        children: vec![],
+                        points,
+                    });
+
+                    // Construction récursive des enfants de cet enfant
+                    let sub_children =
+                        Self::build_children(point_map, &child, b);
+
+                    // Ajout des enfants à l’enfant
+                    Arc::get_mut(&mut Arc::clone(&child))
+                        .unwrap()
+                        .children = sub_children;
+
+                    Some(child)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn flatten_leaves(self: &Arc<Self>) -> Vec<Arc<AnimationTree>> {
+        if self.children.is_empty() {
+            // C'est une feuille → on la garde
+            vec![self.clone()]
+        } else {
+            // Sinon on explore seulement les enfants
+            self.children
+                .iter()
+                .flat_map(|child| child.flatten_leaves())
+                .collect()
+        }
+    }}
+
+pub struct AnimationGenerator {
+    point_map: HashMap<BoneName, AnimatorData>,
+    trees: Vec<Arc<AnimationTree>>,
+}
+
+impl AnimationGenerator {
+    pub fn new(point_map: HashMap<BoneName, AnimatorData>, children: Vec<BlueprintChildren>) -> Self {
+        let trees : Vec<Arc<AnimationTree>> = children
+            .iter()
+            .filter_map(|g| {
+                if let BlueprintChildren::Group(b) = g {
+                    Some(AnimationTree::new_root(&point_map, b, vec![]))
+                } else {
+                    None
+                }
+            })
+            .flat_map(|t| t.flatten_leaves().clone())
+            .collect();
+        Self {
+            point_map,
+            trees,
+        }
+
+    }
+
+    pub fn create_movements(group: &BlueprintGroup, point_map: HashMap<BoneName, AnimatorData>) -> HashMap<BoneName, BlueprintAnimator> {
+        let floatset : BTreeSet<OrderedFloat<f32>> = point_map.values().flat_map(|a| a.points.clone()).map(|p| OrderedFloat(p.position.time)).collect(); 
+        
+        todo!()
+
+    }
+}
+
+
+
+#[derive(Clone)]
 pub struct AnimationPoint {
     pub position: VectorPoint,
     pub rotation: VectorPoint,
