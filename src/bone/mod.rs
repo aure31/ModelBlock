@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::RwLock;
@@ -7,7 +8,7 @@ use std::sync::RwLock;
 use tokio::sync::Mutex;
 
 // Ta structure BoneTag
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BoneTag {
     pub name: &'static str,
     pub tags: &'static [&'static str],
@@ -57,13 +58,32 @@ impl BoneTagRegistry {
     pub fn get(&self, name: &str) -> Option<&BoneTag> {
         self.tags.get(name)
     }
+
+    pub fn parse(&self, raw_name: &str) -> BoneName {
+        let tag_array = raw_name.split("_").collect::<Vec<_>>();
+        if tag_array.len() < 2 {
+            return BoneName::new(HashSet::new(), raw_name.to_string(), raw_name.to_string());
+        }
+        let mut set: HashSet<BoneTag> = HashSet::new();
+        for tag in &tag_array {
+            if set.len() < tag_array.len()
+                && let Some(tag) = self.get(tag)
+            {
+                set.insert(tag.clone());
+            } else {
+                let name = tag_array[set.len()..tag_array.len()].join("_");
+                return BoneName::new(set, name, raw_name.to_string());
+            }
+        }
+        BoneName::new(set, raw_name.to_string(), raw_name.to_string())
+    }
 }
 
 // Singleton registry global
-static BONE_TAG_REGISTRY: LazyLock<Arc<RwLock<BoneTagRegistry>>> =
+pub static BONE_TAG_REGISTRY: LazyLock<Arc<RwLock<BoneTagRegistry>>> =
     LazyLock::new(|| Arc::new(RwLock::new(BoneTagRegistry::new())));
 
-fn get_registry() -> Arc<RwLock<BoneTagRegistry>> {
+pub fn get_registry() -> Arc<RwLock<BoneTagRegistry>> {
     BONE_TAG_REGISTRY.clone()
 }
 
@@ -89,4 +109,36 @@ fn initialize_bone_tags() {
         BoneTag::SEAT,
         BoneTag::SUB_SEAT,
     );
+}
+
+#[derive(Debug, Clone)]
+pub struct BoneName {
+    name: String,
+    raw_name: String,
+    tags: HashSet<BoneTag>,
+}
+
+impl Hash for BoneName {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.raw_name.hash(state);
+    }
+}
+
+impl PartialEq for BoneName {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.raw_name == other.raw_name
+    }
+}
+
+impl Eq for BoneName {}
+
+impl BoneName {
+    pub fn new(tags: HashSet<BoneTag>, name: String, raw_name: String) -> Self {
+        Self {
+            tags,
+            name,
+            raw_name,
+        }
+    }
 }

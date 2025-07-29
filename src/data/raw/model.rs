@@ -1,7 +1,14 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::data::blueprint::animation::AnimationType;
+use crate::utils::default_interpolation;
+use crate::utils::VectorInterpolation;
 
 use super::float3::Float3;
 use super::float4::Float4;
+use ordered_float::OrderedFloat;
+use pumpkin_util::math::vector3::Vector3;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
@@ -22,7 +29,7 @@ where
     Ok(format!("#{}", value))
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ModelUV {
     uv: Float4,
     #[serde(default)]
@@ -31,7 +38,7 @@ pub struct ModelUV {
     texture: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct ModelFace {
     up: ModelUV,
     down: ModelUV,
@@ -41,20 +48,20 @@ struct ModelFace {
     east: ModelUV,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModelElement {
-    name: String,
-    uuid: String,
-    from: Float3,
-    to: Float3,
+    pub name: String,
+    pub uuid: String,
+    pub from: Float3,
+    pub to: Float3,
     #[serde(default)]
-    inflate: f32,
+    pub inflate: f32,
     #[serde(default)]
-    rotation: Float3,
-    origin: Float3,
-    faces: ModelFace,
+    pub rotation: Float3,
+    pub origin: Float3,
+    pub faces: ModelFace,
     #[serde(default)]
-    visibility: bool,
+    pub visibility: bool,
 }
 
 impl ModelElement {
@@ -73,17 +80,7 @@ pub struct ModelTexture {
     pub uv_height: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub enum AnimationType {
-    #[default]
-    PlayOnce,
-    #[serde(rename = "loop")]
-    Loop,
-    #[serde(rename = "hold")]
-    HoldOnLast,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum KeyFrameChannel {
     Position,
@@ -102,7 +99,7 @@ where
     s.parse::<f32>().map_err(serde::de::Error::custom)
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataPoint {
     #[serde(deserialize_with = "f32_from_str")]
     x: f32,
@@ -114,39 +111,74 @@ pub struct DataPoint {
     script: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ModelKeyFrame {
-    channel: KeyFrameChannel,
-    data_points: Vec<DataPoint>,
-    #[serde(default)]
-    bezier_left_time: Float3,
-    #[serde(default)]
-    bezier_left_value: Float3,
-    #[serde(default)]
-    bezier_right_time: Float3,
-    #[serde(default)]
-    bezier_right_value: Float3,
-    interpolation: String,
-    uuid: String,
-    time: f32,
+impl DataPoint {
+    pub fn to_vector(&self) -> Vector3<f32> {
+        Vector3::new(self.x, self.y, self.z)
+    }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModelKeyFrame {
+    pub channel: KeyFrameChannel,
+    pub data_points: Vec<DataPoint>,
+    #[serde(default)]
+    pub bezier_left_time: Float3,
+    #[serde(default)]
+    pub bezier_left_value: Float3,
+    #[serde(default)]
+    pub bezier_right_time: Float3,
+    #[serde(default)]
+    pub bezier_right_value: Float3,
+    pub interpolation: Option<String>,
+    pub uuid: String,
+    pub time: f32,
+}
+
+impl ModelKeyFrame {
+    pub fn find_interpolation(&self) -> Arc<dyn VectorInterpolation + Sync + Send + 'static> {
+        if self.interpolation.is_none() {
+            return default_interpolation();
+        }
+        todo!()
+    }
+}
+
+impl PartialEq for ModelKeyFrame {
+    fn eq(&self, other: &Self) -> bool {
+        self.time == other.time
+    }
+}
+
+impl Eq for ModelKeyFrame {}
+
+impl PartialOrd for ModelKeyFrame {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ModelKeyFrame {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        OrderedFloat(self.time).cmp(&OrderedFloat(other.time))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModelAnimator {
-    name: String,
-    keyframes: Vec<ModelKeyFrame>,
+    pub name: Option<String>,
+    pub keyframes: Vec<ModelKeyFrame>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ModelAnimation {
-    name: String,
+    pub name: String,
     #[serde(default)]
-    looptype: AnimationType,
+    pub looptype: AnimationType,
     #[serde(default)]
-    overriding: bool,
-    uuid: String,
-    length: f32,
-    animators: HashMap<String, ModelAnimator>,
+    pub overriding: bool,
+    pub uuid: String,
+    pub length: f32,
+    pub animators: HashMap<String, ModelAnimator>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

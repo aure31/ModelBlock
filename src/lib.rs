@@ -13,6 +13,7 @@ use pumpkin_api_macros::{plugin_impl, plugin_method};
 use pumpkin_util::text::{color::NamedColor, TextComponent};
 mod bone;
 mod data;
+mod utils;
 
 struct MyJoinHandler;
 
