@@ -8,13 +8,15 @@ use pumpkin_util::math::vector3::Vector3;
 
 use crate::data::blueprint::animation::AnimationPoint;
 
+pub mod collection;
+pub mod interpolate;
 pub mod math;
 
 #[derive(Clone)]
 pub struct VectorPoint {
     pub vector: Vector3<f32>,
     pub time: f32,
-    pub interpolation: Arc<dyn VectorInterpolation + Sync + Send>,
+    pub interpolation: Arc<dyn interpolate::VectorInterpolation + Sync + Send>,
 }
 
 fn points(set: &mut BTreeSet<OrderedFloat<f32>>, points: &[VectorPoint]) {
@@ -107,7 +109,7 @@ impl VectorPoint {
     pub fn new(
         vector: Vector3<f32>,
         time: f32,
-        interpolation: Arc<dyn VectorInterpolation + Sync + Send>,
+        interpolation: Arc<dyn interpolate::VectorInterpolation + Sync + Send>,
     ) -> Self {
         Self {
             vector,
@@ -120,34 +122,7 @@ impl VectorPoint {
         Self {
             vector: Vector3::new(0.0, 0.0, 0.0),
             time: 0.0,
-            interpolation: default_interpolation(),
+            interpolation: interpolate::default_interpolation(),
         }
-    }
-}
-
-pub trait VectorInterpolation {
-    fn interpolate(&self, points: &[VectorPoint], p2_index: usize, time: f32) -> VectorPoint;
-}
-
-pub fn default_interpolation() -> Arc<LinearInterpolation> {
-    Arc::new(LinearInterpolation)
-}
-
-pub struct LinearInterpolation;
-
-impl VectorInterpolation for LinearInterpolation {
-    fn interpolate(&self, points: &[VectorPoint], p2_index: usize, time: f32) -> VectorPoint {
-        let p1 = if p2_index > 0 {
-            &points[p2_index - 1]
-        } else {
-            &VectorPoint::empty()
-        };
-        let p2 = &points[p2_index];
-        let t = (time - p1.time) / (p2.time - p1.time);
-        VectorPoint::new(
-            p1.vector.lerp(&p2.vector, t),
-            time,
-            Arc::new(LinearInterpolation),
-        )
     }
 }

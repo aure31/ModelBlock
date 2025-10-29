@@ -3,14 +3,14 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use image::ImageBuffer;
 use image::Rgba;
 use pumpkin_util::math::vector3::Vector3;
 
-use crate::bone::get_registry;
 use crate::bone::BoneName;
+use crate::bone::get_registry;
 
 use self::animation::BlueprintAnimation;
 
@@ -116,8 +116,7 @@ impl From<ModelData> for ModelBlueprint {
             scale: data.scale(),
             resolution: data.resolution,
             textures: data.textures.iter().map(|e| e.into()).collect(),
-            //mapToList(data.outliner(), children -> BlueprintChildren.from(children, associate(data.elements(), ModelElement::uuid, e -> e)))
-            animations: data.animations,
+            animations: data.animations.iter().map(|e| e.to),
             group: group,
         }
     }

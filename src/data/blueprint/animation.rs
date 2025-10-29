@@ -10,36 +10,52 @@ use pumpkin_util::math::vector3::Vector3;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::bone::BoneName;
 use crate::bone::BONE_TAG_REGISTRY;
+use crate::bone::BoneName;
 use crate::data::blueprint::BlueprintChildren;
 use crate::data::raw::model::KeyFrameChannel;
 use crate::data::raw::model::ModelAnimation;
 use crate::data::raw::model::ModelKeyFrame;
+use crate::utils::VectorPoint;
+use crate::utils::interpolate::VectorInterpolation;
 use crate::utils::math;
 use crate::utils::sum;
-use crate::utils::VectorInterpolation;
-use crate::utils::VectorPoint;
 
+use super::BlueprintGroup;
 use super::script::BlueprintScript;
 use super::script::TimeScript;
-use super::BlueprintGroup;
 
-#[derive(Clone,Default)]
+#[derive(Clone, Default)]
 pub struct AnimationMovement {
     time: f32,
-    tranform: Vector3<f32>,
-    scale: Vector3<f32>,
-    rotation: Vector3<f32>,
+    position: Option<Vector3<f32>>,
+    scale: Option<Vector3<f32>>,
+    rotation: Option<Vector3<f32>>,
+    skip_interpolation: Option<bool>,
 }
 
 impl AnimationMovement {
-    pub fn new(time: f32, tranform: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>) -> Self {
+    pub const EMPTY: AnimationMovement = AnimationMovement {
+        time: 0.0,
+        position: None,
+        scale: None,
+        rotation: None,
+        skip_interpolation: None,
+    };
+
+    pub fn new(
+        time: f32,
+        position: Option<Vector3<f32>>,
+        scale: Option<Vector3<f32>>,
+        rotation: Option<Vector3<f32>>,
+        skip_interpolation: Option<bool>,
+    ) -> Self {
         Self {
             time,
-            tranform,
+            position,
             scale,
             rotation,
+            skip_interpolation,
         }
     }
 
@@ -47,6 +63,23 @@ impl AnimationMovement {
         Self {
             time: length,
             ..Default::default()
+        }
+    }
+
+    pub fn has_keyframe(&self) -> bool {
+        self.position.is_some() || self.scale.is_some() || self.rotation.is_some()
+    }
+
+    pub fn empty(&self) -> Self {
+        if !self.has_keyframe() {
+            self.clone()
+        } else if self.time < 0.0 {
+            AnimationMovement::EMPTY
+        } else {
+            AnimationMovement {
+                time: self.time,
+                ..Default::default()
+            }
         }
     }
 }
@@ -141,8 +174,8 @@ fn unique(items: Vec<VectorPoint>) -> Vec<VectorPoint> {
 }
 
 impl BlueprintAnimator {
-    pub fn iterator(&self, typ: AnimationType) -> Arc<dyn AnimationIterator> {
-        typ.create(self.key_frame.iter().map(|x| x.clone().into()).collect())
+    pub fn iterator(&self, r#type: AnimationType) -> Arc<dyn AnimationIterator> {
+        r#type.create(self.key_frame.iter().map(|x| x.clone().into()).collect())
     }
 }
 
@@ -279,12 +312,19 @@ impl BlueprintAnimation {
                 );
             }
         }
-        let animators : HashMap<BoneName, BlueprintAnimator> = AnimationGenerator::createMovements(children, map);
+        let animators: HashMap<BoneName, BlueprintAnimator> =
+            AnimationGenerator::create_movements(children, map);
         let empty_animator = if animators.is_empty() {
-            vec![AnimationMovement::default(), AnimationMovement::from_lenght(animation.length)]
+            vec![
+                AnimationMovement::default(),
+                AnimationMovement::from_lenght(animation.length),
+            ]
         } else {
-            vec![]
-        }
+            animators.values().into()
+        };
+        let empty_keyframes = empty_animator
+            .first()
+            .map(|e| e.keyframe.into_iter().map(|e| e.empty()).collect());
         Self {
             name: animation.name,
             loop_type: animation.looptype,
@@ -292,13 +332,13 @@ impl BlueprintAnimation {
             overriding: animation.overriding,
             animator: animators,
             script: blueprint_script,
-            empty_animator: ,
+            empty_animator: empty_keyframes,
         }
     }
 }
 
 pub struct AnimationTree {
-    pub parent: Weak<AnimationTree>, // lien faible vers le parent
+    pub parent: Weak<AnimationTree>,       // lien faible vers le parent
     pub children: Vec<Arc<AnimationTree>>, // enfants avec Arc
     pub points: Vec<AnimationPoint>,
 }
@@ -319,9 +359,7 @@ impl AnimationTree {
         // Ajout récursif des enfants
         let children = Self::build_children(point_map, &root, group);
         // On remplit les enfants de la racine
-        Arc::get_mut(&mut Arc::clone(&root))
-            .unwrap()
-            .children = children;
+        Arc::get_mut(&mut Arc::clone(&root)).unwrap().children = children;
 
         root
     }
@@ -350,13 +388,10 @@ impl AnimationTree {
                     });
 
                     // Construction récursive des enfants de cet enfant
-                    let sub_children =
-                        Self::build_children(point_map, &child, b);
+                    let sub_children = Self::build_children(point_map, &child, b);
 
                     // Ajout des enfants à l’enfant
-                    Arc::get_mut(&mut Arc::clone(&child))
-                        .unwrap()
-                        .children = sub_children;
+                    Arc::get_mut(&mut Arc::clone(&child)).unwrap().children = sub_children;
 
                     Some(child)
                 } else {
@@ -377,7 +412,8 @@ impl AnimationTree {
                 .flat_map(|child| child.flatten_leaves())
                 .collect()
         }
-    }}
+    }
+}
 
 pub struct AnimationGenerator {
     point_map: HashMap<BoneName, AnimatorData>,
@@ -385,8 +421,11 @@ pub struct AnimationGenerator {
 }
 
 impl AnimationGenerator {
-    pub fn new(point_map: HashMap<BoneName, AnimatorData>, children: Vec<BlueprintChildren>) -> Self {
-        let trees : Vec<Arc<AnimationTree>> = children
+    pub fn new(
+        point_map: HashMap<BoneName, AnimatorData>,
+        children: Vec<BlueprintChildren>,
+    ) -> Self {
+        let trees: Vec<Arc<AnimationTree>> = children
             .iter()
             .filter_map(|g| {
                 if let BlueprintChildren::Group(b) = g {
@@ -397,22 +436,22 @@ impl AnimationGenerator {
             })
             .flat_map(|t| t.flatten_leaves().clone())
             .collect();
-        Self {
-            point_map,
-            trees,
-        }
-
+        Self { point_map, trees }
     }
 
-    pub fn create_movements(group: &BlueprintGroup, point_map: HashMap<BoneName, AnimatorData>) -> HashMap<BoneName, BlueprintAnimator> {
-        let floatset : BTreeSet<OrderedFloat<f32>> = point_map.values().flat_map(|a| a.points.clone()).map(|p| OrderedFloat(p.position.time)).collect(); 
+    pub fn create_movements(
+        lenght: f32,
+        children: Vec<BlueprintChildren>,
+        point_map: HashMap<BoneName, AnimatorData>,
+    ) -> HashMap<BoneName, BlueprintAnimator> {
+        let floatset: BTreeSet<OrderedFloat<f32>> = point_map
+            .values()
+            .flat_map(|a| a.points.clone())
+            .map(|p| OrderedFloat(p.position.time))
+            .collect();
         
-        todo!()
-
     }
 }
-
-
 
 #[derive(Clone)]
 pub struct AnimationPoint {
@@ -420,4 +459,3 @@ pub struct AnimationPoint {
     pub rotation: VectorPoint,
     pub scale: VectorPoint,
 }
-

@@ -7,7 +7,7 @@ use crate::data::raw::float3::Float3;
 pub const MINECRAFT_TICK_MILIS: u8 = 50;
 pub const ROTATION_DEGREE: f32 = 22.5;
 pub const DEGREE_TO_RADIANS: f32 = PI / 180.;
-pub const RADIANS_TO_DEGREE: f32 = 1 / DEGREE_TO_RADIANS;
+pub const RADIANS_TO_DEGREE: f32 = 1. / DEGREE_TO_RADIANS;
 pub const MODEL_TO_BLOCK_MULTIPLIER: f32 = 16.0;
 pub const FRAME_EPSILON: f32 = 0.0001;
 pub const FLOAT_COMPARISON_EPSILON: f32 = 1e-5f32;
